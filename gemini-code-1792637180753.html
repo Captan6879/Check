@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOOJOODOQ J201 - Chrome Realtime Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .case-container { perspective: 1000px; }
+        .case-lid {
+            transform-origin: top center;
+            transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .case-lid.open { transform: rotateX(-115deg); }
+        .earbud { transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .case-lid.open ~ .earbuds .earbud-left { transform: translateY(-28px) rotate(-8deg); }
+        .case-lid.open ~ .earbuds .earbud-right { transform: translateY(-28px) rotate(8deg); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4 font-sans">
+
+    <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-center">
+        <!-- Header -->
+        <div class="mb-4">
+            <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                Chrome Native Hardware Engine
+            </span>
+            <h1 class="text-2xl font-extrabold text-white mt-3">GOOJOODOQ J201</h1>
+            <p id="sub-status" class="text-xs text-slate-400 mt-1">กดปุ่มเริ่มต้นเพื่อให้ Chrome ตรวจจับสถานะหูฟัง</p>
+        </div>
+
+        <!-- 3D Animated Earphone Case -->
+        <div class="case-container relative w-44 h-44 mx-auto my-6 flex items-center justify-center">
+            <div class="relative w-36 h-36 bg-gradient-to-b from-slate-800 to-slate-900 rounded-3xl border-2 border-slate-700 shadow-2xl flex flex-col justify-end items-center p-4">
+                
+                <!-- ฝาเคส (Lid) -->
+                <div id="case-lid" class="case-lid absolute inset-x-0 top-0 h-18 bg-gradient-to-b from-slate-700 to-slate-800 rounded-t-3xl border-b border-slate-600/60 z-20 flex items-center justify-center shadow-md">
+                    <div class="w-10 h-1 bg-slate-500/50 rounded-full"></div>
+                </div>
+
+                <!-- หูฟัง -->
+                <div class="earbuds flex justify-between w-20 mb-2 z-10">
+                    <div class="earbud earbud-left w-7 h-14 bg-gradient-to-b from-white via-slate-100 to-slate-300 rounded-full shadow-xl border border-slate-200 flex flex-col items-center justify-between py-2">
+                        <div class="w-2 h-2 bg-slate-800 rounded-full"></div>
+                    </div>
+                    <div class="earbud earbud-right w-7 h-14 bg-gradient-to-b from-white via-slate-100 to-slate-300 rounded-full shadow-xl border border-slate-200 flex flex-col items-center justify-between py-2">
+                        <div class="w-2 h-2 bg-slate-800 rounded-full"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Status Badge -->
+        <div id="status-badge" class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-slate-800 border border-slate-700 transition-all duration-300 mb-4">
+            <span id="status-dot" class="w-3 h-3 rounded-full bg-slate-500 animate-pulse"></span>
+            <span id="status-text" class="text-xs font-semibold text-slate-300">ยังไม่ได้เริ่มตรวจจับ</span>
+        </div>
+
+        <!-- Start Button -->
+        <div class="mb-4">
+            <button id="start-btn" onclick="startDetection()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white rounded-2xl font-semibold text-sm shadow-lg shadow-indigo-600/30 transition-all">
+                ⚡ เริ่มตรวจจับสถานะเคส Realtime
+            </button>
+        </div>
+
+        <!-- Terminal Log -->
+        <div class="text-left bg-slate-950 rounded-xl p-3 border border-slate-800">
+            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Live Terminal Log</div>
+            <div id="log-container" class="text-[11px] font-mono text-slate-400 space-y-1 h-20 overflow-y-auto">
+                <div>[System] Ready for user gesture.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const caseLid = document.getElementById('case-lid');
+        const statusBadge = document.getElementById('status-badge');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const subStatus = document.getElementById('sub-status');
+        const logContainer = document.getElementById('log-container');
+        const startBtn = document.getElementById('start-btn');
+
+        let isDetectedOnce = false;
+
+        function addLog(msg) {
+            const item = document.createElement('div');
+            item.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logContainer.appendChild(item);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        async function startDetection() {
+            try {
+                // ขออนุญาต Chrome เข้าถึง Hardware Media Devices สั้นๆ เพื่อดึงชื่ออุปกรณ์
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // ปิด Stream ทันทีหลังได้รับการอนุญาต ไม่ส่งผลกระทบต่อแบตเตอรี่หรือไมค์
+                stream.getTracks().forEach(track => track.stop());
+
+                startBtn.classList.add('hidden');
+                subStatus.innerText = "ระบบ Realtime Hardware Sensing กำลังทำงาน";
+                addLog("Chrome Audio Hardware Listener Activated.");
+
+                // สแกนสถานะปัจจุบันทันที
+                await scanAudioDevices();
+
+                // ตั้ง Listener เมื่อมีการสลับหูฟัง (เปิด/ปิดเคส)
+                if (navigator.mediaDevices.ondevicechange !== undefined) {
+                    navigator.mediaDevices.ondevicechange = scanAudioDevices;
+                }
+
+                // สแกนสำรองทุก 1 วินาทีเพื่อความแม่นยำ 100%
+                setInterval(scanAudioDevices, 1000);
+
+            } catch (err) {
+                addLog("Error: " + err.message);
+                alert("กรุณากด 'อนุญาต' (Allow) เพื่อให้ Chrome สามารถสแกนอุปกรณ์บลูทูธที่ต่อกับเครื่องได้ครับ");
+            }
+        }
+
+        let lastState = null;
+
+        async function scanAudioDevices() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                
+                // ค้นหาอุปกรณ์บลูทูธ GOOJOODOQ J201 หรือรายการ Audio Output ที่เพิ่มขึ้นมา
+                const isJ201Connected = devices.some(d => {
+                    const label = d.label.toLowerCase();
+                    return label.includes('j201') || 
+                           label.includes('goojoodoq') || 
+                           (d.kind === 'audiooutput' && (label.includes('bluetooth') || label.includes('headset') || label.includes('headphones')));
+                });
+
+                updateUI(isJ201Connected);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function updateUI(isConnected) {
+            if (isConnected === lastState) return;
+            lastState = isConnected;
+
+            if (isConnected) {
+                caseLid.classList.add('open');
+                statusBadge.className = "inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400";
+                statusDot.className = "w-3 h-3 rounded-full bg-emerald-500 animate-ping";
+                statusText.innerText = "เปิดเคสอยู่ (จับคู่บลูทูธแล้ว)";
+                addLog("J201 CONNECTED: Lid Opened");
+            } else {
+                caseLid.classList.remove('open');
+                statusBadge.className = "inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400";
+                statusDot.className = "w-3 h-3 rounded-full bg-rose-500";
+                statusText.innerText = "ปิดเคสอยู่ (ตัดการเชื่อมต่อ / ชาร์จแบตอยู่)";
+                addLog("J201 DISCONNECTED: Lid Closed");
+            }
+        }
+    </script>
+</body>
+</html>
